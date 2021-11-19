@@ -121,13 +121,18 @@ func (c *Client) Token(ctx context.Context, opts *tokenOptions) (*logical.Respon
 		}
 	}
 
-	_, err := c.getInstallationID(ctx, 120)
+	instID, err := c.getInstallationID(ctx, 120)
 	if err != nil {
 		return nil, err
 	}
+	if instID == "" {
+		return nil, nil
+	}
+
+	accessTokenURL := fmt.Sprintf("%s/%s/access_tokens", c.url.String(), instID)
 
 	// Build the token request.
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.url.String(), body)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, accessTokenURL, body)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", errUnableToBuildAccessTokenReq, err)
 	}
@@ -186,7 +191,7 @@ func (c *Client) Token(ctx context.Context, opts *tokenOptions) (*logical.Respon
 	return tokenRes, nil
 }
 
-func (c *Client) getInstallationID(ctx context.Context, expiry int) (*http.Response, error) {
+func (c *Client) getInstallationID(ctx context.Context, expiry int) (string, error) {
 	expires := jwt.NewNumericDate(time.Now().Add(time.Second * time.Duration(expiry)))
 	issuedAt := jwt.NewNumericDate(time.Now().Add(time.Second * -10))
 	claims := &jwt.RegisteredClaims{
@@ -196,15 +201,15 @@ func (c *Client) getInstallationID(ctx context.Context, expiry int) (*http.Respo
 	}
 	signKey, err := jwt.ParseRSAPrivateKeyFromPEM([]byte(c.PrvKey))
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 	signedToken, err := jwt.NewWithClaims(jwt.SigningMethodRS256, claims).SignedString(signKey)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.url.String(), nil)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", signedToken))
 	req.Header.Set("Accept", "application/vnd.github.v3+json")
@@ -212,9 +217,38 @@ func (c *Client) getInstallationID(ctx context.Context, expiry int) (*http.Respo
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
-	return resp, nil
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	var instResult []Installation
+	if err := json.Unmarshal(body, &instResult); err != nil {
+		return "", err
+	}
+
+	var instID string
+	for _, v := range instResult {
+		if v.Account.Login == c.OrgName {
+			instID = v.ID
+			break
+		}
+	}
+	return instID, nil
+}
+
+type Installation struct {
+	ID      string  `json:"id"`
+	Account Account `json:"account"`
+}
+
+type Account struct {
+	Login string `json:"login"`
 }
 
 // RevokeToken takes a valid access token and performs a revocation against

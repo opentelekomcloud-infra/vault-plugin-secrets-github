@@ -22,10 +22,10 @@ const (
 	testRepoID1 = 223704264
 	testRepoID2 = 360447594
 	testToken   = "ghs_1aRGyjpfMQ98l0rnji5dstEEg10rOY3lenzG"
+	testPath    = "app/installations/"
 )
 
 var (
-	testPath     = fmt.Sprintf("app/installations/%v/access_tokens", testOrgName1)
 	testTokenExp = time.Now().Add(time.Minute * 10).Format(time.RFC3339)
 	testPerms    = map[string]string{
 		"deployments":   "read",
