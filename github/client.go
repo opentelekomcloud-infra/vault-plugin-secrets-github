@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/circonus-labs/circonus-gometrics/api/config"
 	"github.com/golang-jwt/jwt/v4"
 	"io"
 	"io/ioutil"
@@ -209,7 +208,7 @@ func (c *Client) GetInstallationID(ctx context.Context) error {
 
 	instURL, err := url.ParseRequestURI(fmt.Sprintf(
 		"%s/app/installations/",
-		strings.TrimSuffix(fmt.Sprint(config.BaseURL), "/"),
+		strings.TrimSuffix(c.BaseURL, "/"),
 	))
 	if err != nil {
 		return err
