@@ -112,6 +112,16 @@ func TestBackend_Config(t *testing.T) {
 			},
 		},
 		{
+			name: "Organization",
+			new: []byte(fmt.Sprintf(`{"%s":%d, "%s":"%s"}`,
+				keyAppID, testAppID1, keyOrgName, testOrgName1)),
+			exp: &Config{
+				AppID:   testAppID1,
+				OrgName: testOrgName1,
+				BaseURL: githubPublicAPI,
+			},
+		},
+		{
 			name:        "FailedStorage",
 			failStorage: []failVerb{failVerbRead, failVerbPut, failVerbList, failVerbDelete},
 			err:         errors.New(fmtErrConfRetrieval),

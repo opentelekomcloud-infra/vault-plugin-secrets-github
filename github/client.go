@@ -34,9 +34,6 @@ var (
 type Client struct {
 	*Config
 
-	// URL is the access token URL for this client.
-	url *url.URL
-
 	// Transport is the HTTP transport used for token requests.
 	transport http.RoundTripper
 
@@ -106,18 +103,18 @@ func (s statusCode) Revoked() bool { return s.Successful() || s == 401 }
 // parsing request and response object, an error is returned.
 func (c *Client) Token(ctx context.Context, opts *tokenOptions) (*logical.Response, error) {
 	if c.OrgName != "" && c.InsID == 0 {
-		instID, err := c.GetInstallationID(ctx)
-		if err != nil {
+		if err := c.GetInstallationID(ctx); err != nil {
 			return nil, err
 		}
+	}
 
-		if c.url, err = url.ParseRequestURI(fmt.Sprintf(
-			"%s/app/installations/%v/access_tokens",
-			strings.TrimSuffix(fmt.Sprint(config.BaseURL), "/"),
-			instID,
-		)); err != nil {
-			return nil, err
-		}
+	accessTokenUrl, err := url.ParseRequestURI(fmt.Sprintf(
+		"%s/app/installations/%v/access_tokens",
+		strings.TrimSuffix(c.BaseURL, "/"),
+		c.InsID,
+	))
+	if err != nil {
+		return nil, err
 	}
 
 	// Marshal a request body only if there are any user-specified GitHub App
@@ -131,7 +128,7 @@ func (c *Client) Token(ctx context.Context, opts *tokenOptions) (*logical.Respon
 	}
 
 	// Build the token request.
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.url.String(), body)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, accessTokenUrl.String(), body)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", errUnableToBuildAccessTokenReq, err)
 	}
@@ -197,7 +194,7 @@ type Account struct {
 	Login string `json:"login"`
 }
 
-func (c *Client) GetInstallationID(ctx context.Context) (*string, error) {
+func (c *Client) GetInstallationID(ctx context.Context) error {
 	expires := jwt.NewNumericDate(time.Now().Add(time.Second * time.Duration(120)))
 	issuedAt := jwt.NewNumericDate(time.Now().Add(time.Second * -10))
 	claims := &jwt.RegisteredClaims{
@@ -207,7 +204,7 @@ func (c *Client) GetInstallationID(ctx context.Context) (*string, error) {
 	}
 	signKey, err := jwt.ParseRSAPrivateKeyFromPEM([]byte(c.PrvKey))
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	instURL, err := url.ParseRequestURI(fmt.Sprintf(
@@ -215,16 +212,16 @@ func (c *Client) GetInstallationID(ctx context.Context) (*string, error) {
 		strings.TrimSuffix(fmt.Sprint(config.BaseURL), "/"),
 	))
 	if err != nil {
-		return nil, err
+		return err
 	}
 	signedToken, err := jwt.NewWithClaims(jwt.SigningMethodRS256, claims).SignedString(signKey)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, instURL.String(), nil)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", signedToken))
@@ -233,14 +230,14 @@ func (c *Client) GetInstallationID(ctx context.Context) (*string, error) {
 	// Perform the request, re-using the shared transport.
 	res, err := c.transport.RoundTrip(req)
 	if err != nil {
-		return nil, fmt.Errorf("%w: RoundTrip error: %v", errUnableToCreateAccessToken, err)
+		return fmt.Errorf("%w: RoundTrip error: %v", errUnableToCreateAccessToken, err)
 	}
 
 	defer res.Body.Close()
 
 	var instResult []Installation
 	if err := json.NewDecoder(res.Body).Decode(&instResult); err != nil {
-		return nil, err
+		return err
 	}
 
 	var instID string
@@ -251,9 +248,13 @@ func (c *Client) GetInstallationID(ctx context.Context) (*string, error) {
 		}
 	}
 	if instID == "" {
-		return nil, fmt.Errorf("installation ID for the organization wasn't found")
+		return fmt.Errorf("installation ID for the organization wasn't found")
 	}
-	return &instID, nil
+
+	if c.InsID, err = strconv.Atoi(instID); err != nil {
+		return err
+	}
+	return nil
 }
 
 // RevokeToken takes a valid access token and performs a revocation against

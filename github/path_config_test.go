@@ -112,7 +112,7 @@ func testBackendPathConfigCreateUpdate(t *testing.T, op logical.Operation) {
 		assert.DeepEqual(t, testBaseURLValid, config.BaseURL)
 	})
 
-	t.Run("Exist", func(t *testing.T) {
+	t.Run("Exist Installation", func(t *testing.T) {
 		t.Parallel()
 
 		b, storage := testBackend(t)
@@ -147,6 +147,41 @@ func testBackendPathConfigCreateUpdate(t *testing.T, op logical.Operation) {
 		assert.DeepEqual(t, testBaseURLValid, config.BaseURL)
 	})
 
+	t.Run("Exist Organization", func(t *testing.T) {
+		t.Parallel()
+
+		b, storage := testBackend(t)
+
+		entry, err := logical.StorageEntryJSON(pathPatternConfig, &Config{
+			AppID:   testAppID1,
+			OrgName: testOrgName1,
+		})
+		assert.NilError(t, err)
+		assert.Assert(t, entry != nil)
+
+		assert.NilError(t, storage.Put(context.Background(), entry))
+
+		_, err = b.HandleRequest(context.Background(), &logical.Request{
+			Storage:   storage,
+			Operation: op,
+			Path:      pathPatternConfig,
+			Data: map[string]interface{}{
+				keyAppID:   testAppID2,
+				keyOrgName: testOrgName2,
+				keyPrvKey:  testPrvKeyValid,
+				keyBaseURL: testBaseURLValid,
+			},
+		})
+		assert.NilError(t, err)
+
+		config, err := b.Config(context.Background(), storage)
+		assert.NilError(t, err)
+		assert.Assert(t, config != nil)
+		assert.Equal(t, testAppID2, config.AppID)
+		assert.Equal(t, testOrgName2, config.OrgName)
+		assert.DeepEqual(t, testBaseURLValid, config.BaseURL)
+	})
+
 	t.Run("FailedStorageRetrieve", func(t *testing.T) {
 		t.Parallel()
 
@@ -161,7 +196,7 @@ func testBackendPathConfigCreateUpdate(t *testing.T, op logical.Operation) {
 		assert.Assert(t, is.Nil(resp))
 	})
 
-	t.Run("FailedStoragePersist", func(t *testing.T) {
+	t.Run("FailedStoragePersist Installation", func(t *testing.T) {
 		t.Parallel()
 
 		b, storage := testBackend(t, failVerbPut)
@@ -173,6 +208,26 @@ func testBackendPathConfigCreateUpdate(t *testing.T, op logical.Operation) {
 			Data: map[string]interface{}{
 				keyAppID:   testAppID2,
 				keyInsID:   testInsID2,
+				keyPrvKey:  testPrvKeyValid,
+				keyBaseURL: testBaseURLValid,
+			},
+		})
+		assert.ErrorContains(t, err, fmtErrConfPersist)
+		assert.Assert(t, is.Nil(resp))
+	})
+
+	t.Run("FailedStoragePersist Organization", func(t *testing.T) {
+		t.Parallel()
+
+		b, storage := testBackend(t, failVerbPut)
+
+		resp, err := b.HandleRequest(context.Background(), &logical.Request{
+			Storage:   storage,
+			Operation: op,
+			Path:      pathPatternConfig,
+			Data: map[string]interface{}{
+				keyAppID:   testAppID2,
+				keyOrgName: testOrgName2,
 				keyPrvKey:  testPrvKeyValid,
 				keyBaseURL: testBaseURLValid,
 			},
