@@ -67,7 +67,7 @@ func NewClient(config *Config) (c *Client, err error) {
 	}
 
 	insID := config.InsID
-	if config.OrgName != "" && config.InsID == 0 {
+	if config.OrgName != "" && insID == 0 {
 		insID, err = c.getInstallationID(config)
 		if err != nil {
 			return nil, err

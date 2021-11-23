@@ -25,6 +25,7 @@ const (
 )
 
 var (
+	testPath     = fmt.Sprintf("app/installations/%v/access_tokens", testInsID1)
 	testTokenExp = time.Now().Add(time.Minute * 10).Format(time.RFC3339)
 	testPerms    = map[string]string{
 		"deployments":   "read",
@@ -39,6 +40,7 @@ func TestNewClient(t *testing.T) {
 		name string
 		conf *Config
 		err  error
+		url  string
 	}{
 		{
 			name: "Empty",
@@ -52,6 +54,7 @@ func TestNewClient(t *testing.T) {
 				PrvKey:  testPrvKeyValid,
 				BaseURL: testBaseURLValid,
 			},
+			url: fmt.Sprintf("%s/%s", testBaseURLValid, testPath),
 		},
 		{
 			name: "InvalidPrvKey",
@@ -86,6 +89,7 @@ func TestNewClient(t *testing.T) {
 			} else {
 				assert.NilError(t, err)
 				assert.Assert(t, c != nil)
+				assert.Equal(t, c.url.String(), tc.url)
 			}
 		})
 	}
@@ -109,6 +113,7 @@ func TestClient_Token(t *testing.T) {
 				t.Helper()
 
 				assert.Equal(t, r.Method, http.MethodPost)
+				assert.Equal(t, r.URL.Path, fmt.Sprintf("/%s", testPath))
 				assert.Assert(t, r.Header.Get("Authorization") != "")
 
 				w.Header().Set("Content-Type", "application/json")
@@ -138,6 +143,7 @@ func TestClient_Token(t *testing.T) {
 				t.Helper()
 
 				assert.Equal(t, r.Method, http.MethodPost)
+				assert.Equal(t, r.URL.Path, fmt.Sprintf("/%s", testPath))
 				assert.Assert(t, r.Header.Get("Authorization") != "")
 
 				var reqBody map[string]interface{}
