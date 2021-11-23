@@ -6,10 +6,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/circonus-labs/circonus-gometrics/api/config"
+	"github.com/golang-jwt/jwt/v4"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -53,6 +56,7 @@ func NewClient(config *Config) (c *Client, err error) {
 	}
 
 	c = &Client{
+		Config:              config,
 		revocationTransport: http.DefaultTransport,
 	}
 
@@ -61,14 +65,6 @@ func NewClient(config *Config) (c *Client, err error) {
 		int64(config.AppID),
 		[]byte(config.PrvKey),
 	); err != nil {
-		return nil, err
-	}
-
-	if c.url, err = url.ParseRequestURI(fmt.Sprintf(
-		"%s/app/installations/%v/access_tokens",
-		strings.TrimSuffix(fmt.Sprint(config.BaseURL), "/"),
-		config.InsID,
-	)); err != nil {
 		return nil, err
 	}
 
@@ -109,6 +105,21 @@ func (s statusCode) Revoked() bool { return s.Successful() || s == 401 }
 // Token returns a valid access token. If there are any failures on the wire or
 // parsing request and response object, an error is returned.
 func (c *Client) Token(ctx context.Context, opts *tokenOptions) (*logical.Response, error) {
+	if c.OrgName != "" && c.InsID == 0 {
+		instID, err := c.GetInstallationID(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		if c.url, err = url.ParseRequestURI(fmt.Sprintf(
+			"%s/app/installations/%v/access_tokens",
+			strings.TrimSuffix(fmt.Sprint(config.BaseURL), "/"),
+			instID,
+		)); err != nil {
+			return nil, err
+		}
+	}
+
 	// Marshal a request body only if there are any user-specified GitHub App
 	// token constraints.
 	var body io.ReadWriter
@@ -175,6 +186,63 @@ func (c *Client) Token(ctx context.Context, opts *tokenOptions) (*logical.Respon
 	}
 
 	return tokenRes, nil
+}
+
+type Installation struct {
+	ID      string  `json:"id"`
+	Account Account `json:"account"`
+}
+
+type Account struct {
+	Login string `json:"login"`
+}
+
+func (c *Client) GetInstallationID(ctx context.Context) (*string, error) {
+	expires := jwt.NewNumericDate(time.Now().Add(time.Second * time.Duration(120)))
+	issuedAt := jwt.NewNumericDate(time.Now().Add(time.Second * -10))
+	claims := &jwt.RegisteredClaims{
+		ExpiresAt: expires,
+		IssuedAt:  issuedAt,
+		Issuer:    strconv.Itoa(c.AppID),
+	}
+	signKey, err := jwt.ParseRSAPrivateKeyFromPEM([]byte(c.PrvKey))
+	if err != nil {
+		return nil, err
+	}
+	signedToken, err := jwt.NewWithClaims(jwt.SigningMethodRS256, claims).SignedString(signKey)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.url.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", signedToken))
+	req.Header.Set("Accept", "application/vnd.github.v3+json")
+
+	// Perform the request, re-using the shared transport.
+	res, err := c.transport.RoundTrip(req)
+	if err != nil {
+		return nil, fmt.Errorf("%w: RoundTrip error: %v", errUnableToCreateAccessToken, err)
+	}
+
+	defer res.Body.Close()
+
+	var instResult []Installation
+	if err := json.NewDecoder(res.Body).Decode(&instResult); err != nil {
+		return nil, err
+	}
+
+	var instID string
+	for _, v := range instResult {
+		if v.Account.Login == c.OrgName {
+			instID = v.ID
+			break
+		}
+	}
+	return &instID, nil
 }
 
 // RevokeToken takes a valid access token and performs a revocation against
