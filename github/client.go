@@ -33,6 +33,9 @@ var (
 type Client struct {
 	*Config
 
+	// URL is the access token URL for this client.
+	url *url.URL
+
 	// Transport is the HTTP transport used for token requests.
 	transport http.RoundTripper
 
@@ -52,7 +55,6 @@ func NewClient(config *Config) (c *Client, err error) {
 	}
 
 	c = &Client{
-		Config:              config,
 		revocationTransport: http.DefaultTransport,
 	}
 
@@ -61,6 +63,22 @@ func NewClient(config *Config) (c *Client, err error) {
 		int64(config.AppID),
 		[]byte(config.PrvKey),
 	); err != nil {
+		return nil, err
+	}
+
+	insID := config.InsID
+	if config.OrgName != "" && config.InsID == 0 {
+		insID, err = c.getInstallationID(config)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if c.url, err = url.ParseRequestURI(fmt.Sprintf(
+		"%s/app/installations/%v/access_tokens",
+		strings.TrimSuffix(fmt.Sprint(config.BaseURL), "/"),
+		insID,
+	)); err != nil {
 		return nil, err
 	}
 
@@ -101,21 +119,6 @@ func (s statusCode) Revoked() bool { return s.Successful() || s == 401 }
 // Token returns a valid access token. If there are any failures on the wire or
 // parsing request and response object, an error is returned.
 func (c *Client) Token(ctx context.Context, opts *tokenOptions) (*logical.Response, error) {
-	if c.OrgName != "" && c.InsID == 0 {
-		if err := c.GetInstallationID(ctx); err != nil {
-			return nil, err
-		}
-	}
-
-	accessTokenUrl, err := url.ParseRequestURI(fmt.Sprintf(
-		"%s/app/installations/%v/access_tokens",
-		strings.TrimSuffix(c.BaseURL, "/"),
-		c.InsID,
-	))
-	if err != nil {
-		return nil, err
-	}
-
 	// Marshal a request body only if there are any user-specified GitHub App
 	// token constraints.
 	var body io.ReadWriter
@@ -127,7 +130,7 @@ func (c *Client) Token(ctx context.Context, opts *tokenOptions) (*logical.Respon
 	}
 
 	// Build the token request.
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, accessTokenUrl.String(), body)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.url.String(), body)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", errUnableToBuildAccessTokenReq, err)
 	}
@@ -185,7 +188,7 @@ func (c *Client) Token(ctx context.Context, opts *tokenOptions) (*logical.Respon
 }
 
 type Installation struct {
-	ID      string  `json:"id"`
+	ID      int     `json:"id"`
 	Account Account `json:"account"`
 }
 
@@ -193,34 +196,34 @@ type Account struct {
 	Login string `json:"login"`
 }
 
-func (c *Client) GetInstallationID(ctx context.Context) error {
+func (c *Client) getInstallationID(config *Config) (int, error) {
 	expires := jwt.NewNumericDate(time.Now().Add(time.Second * time.Duration(120)))
 	issuedAt := jwt.NewNumericDate(time.Now().Add(time.Second * -10))
 	claims := &jwt.RegisteredClaims{
 		ExpiresAt: expires,
 		IssuedAt:  issuedAt,
-		Issuer:    strconv.Itoa(c.AppID),
+		Issuer:    strconv.Itoa(config.AppID),
 	}
-	signKey, err := jwt.ParseRSAPrivateKeyFromPEM([]byte(c.PrvKey))
+	signKey, err := jwt.ParseRSAPrivateKeyFromPEM([]byte(config.PrvKey))
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	instURL, err := url.ParseRequestURI(fmt.Sprintf(
 		"%s/app/installations/",
-		strings.TrimSuffix(c.BaseURL, "/"),
+		strings.TrimSuffix(config.BaseURL, "/"),
 	))
 	if err != nil {
-		return err
+		return 0, err
 	}
 	signedToken, err := jwt.NewWithClaims(jwt.SigningMethodRS256, claims).SignedString(signKey)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, instURL.String(), nil)
+	req, err := http.NewRequest(http.MethodGet, instURL.String(), nil)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", signedToken))
@@ -229,31 +232,28 @@ func (c *Client) GetInstallationID(ctx context.Context) error {
 	// Perform the request, re-using the shared transport.
 	res, err := c.transport.RoundTrip(req)
 	if err != nil {
-		return fmt.Errorf("%w: RoundTrip error: %v", errUnableToCreateAccessToken, err)
+		return 0, fmt.Errorf("%w: RoundTrip error: %v", errUnableToCreateAccessToken, err)
 	}
 
 	defer res.Body.Close()
 
 	var instResult []Installation
 	if err := json.NewDecoder(res.Body).Decode(&instResult); err != nil {
-		return err
+		return 0, err
 	}
 
-	var instID string
+	var instID int
 	for _, v := range instResult {
 		if v.Account.Login == c.OrgName {
 			instID = v.ID
 			break
 		}
 	}
-	if instID == "" {
-		return fmt.Errorf("installation ID for the organization wasn't found")
+	if instID == 0 {
+		return 0, fmt.Errorf("installation ID for the organization wasn't found")
 	}
 
-	if c.InsID, err = strconv.Atoi(instID); err != nil {
-		return err
-	}
-	return nil
+	return instID, nil
 }
 
 // RevokeToken takes a valid access token and performs a revocation against
