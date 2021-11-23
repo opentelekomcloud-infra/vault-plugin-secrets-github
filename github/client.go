@@ -209,12 +209,20 @@ func (c *Client) GetInstallationID(ctx context.Context) (*string, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	instURL, err := url.ParseRequestURI(fmt.Sprintf(
+		"%s/app/installations/",
+		strings.TrimSuffix(fmt.Sprint(config.BaseURL), "/"),
+	))
+	if err != nil {
+		return nil, err
+	}
 	signedToken, err := jwt.NewWithClaims(jwt.SigningMethodRS256, claims).SignedString(signKey)
 	if err != nil {
 		return nil, err
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.url.String(), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, instURL.String(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -241,6 +249,9 @@ func (c *Client) GetInstallationID(ctx context.Context) (*string, error) {
 			instID = v.ID
 			break
 		}
+	}
+	if instID == "" {
+		return nil, fmt.Errorf("installation ID for the organization wasn't found")
 	}
 	return &instID, nil
 }
