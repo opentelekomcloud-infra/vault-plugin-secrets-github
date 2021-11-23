@@ -37,7 +37,7 @@ NOARCHES 	=darwin-arm solaris-arm windows-arm
 GOCILINT_VER?=v1.30.0
 GOCILINT_URL=raw.githubusercontent.com/golangci/golangci-lint/master/install.sh
 
-GOTESTSUM_VER?=v0.4.0
+GOTESTSUM_VER?=v3.0.3
 GOTESTSUM_URL=gotest.tools/v3/gotestsum
 
 GOTHUB_VER?=v0.7.0
