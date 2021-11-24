@@ -210,7 +210,7 @@ func (c *Client) getInstallationID(config *Config) (int, error) {
 	}
 
 	instURL, err := url.ParseRequestURI(fmt.Sprintf(
-		"%s/app/installations/",
+		"%s/app/installations",
 		strings.TrimSuffix(config.BaseURL, "/"),
 	))
 	if err != nil {
@@ -244,7 +244,7 @@ func (c *Client) getInstallationID(config *Config) (int, error) {
 
 	var instID int
 	for _, v := range instResult {
-		if v.Account.Login == c.OrgName {
+		if v.Account.Login == config.OrgName {
 			instID = v.ID
 			break
 		}
