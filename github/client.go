@@ -187,15 +187,6 @@ func (c *Client) Token(ctx context.Context, opts *tokenOptions) (*logical.Respon
 	return tokenRes, nil
 }
 
-type Installation struct {
-	ID      int     `json:"id"`
-	Account Account `json:"account"`
-}
-
-type Account struct {
-	Login string `json:"login"`
-}
-
 func (c *Client) getInstallationID(config *Config) (int, error) {
 	expires := jwt.NewNumericDate(time.Now().Add(time.Second * time.Duration(120)))
 	issuedAt := jwt.NewNumericDate(time.Now().Add(time.Second * -10))
@@ -237,7 +228,16 @@ func (c *Client) getInstallationID(config *Config) (int, error) {
 
 	defer res.Body.Close()
 
-	var instResult []Installation
+	type account struct {
+		Login string `json:"login"`
+	}
+
+	type installation struct {
+		ID      int     `json:"id"`
+		Account account `json:"account"`
+	}
+
+	var instResult []installation
 	if err := json.NewDecoder(res.Body).Decode(&instResult); err != nil {
 		return 0, err
 	}
