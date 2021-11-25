@@ -112,7 +112,7 @@ func testBackendPathConfigCreateUpdate(t *testing.T, op logical.Operation) {
 		assert.DeepEqual(t, testBaseURLValid, config.BaseURL)
 	})
 
-	t.Run("Exist Installation", func(t *testing.T) {
+	t.Run("Exist Installation/Organization", func(t *testing.T) {
 		t.Parallel()
 
 		b, storage := testBackend(t)
@@ -145,21 +145,6 @@ func testBackendPathConfigCreateUpdate(t *testing.T, op logical.Operation) {
 		assert.Equal(t, testAppID2, config.AppID)
 		assert.Equal(t, testInsID2, config.InsID)
 		assert.DeepEqual(t, testBaseURLValid, config.BaseURL)
-	})
-
-	t.Run("Exist Organization", func(t *testing.T) {
-		t.Parallel()
-
-		b, storage := testBackend(t)
-
-		entry, err := logical.StorageEntryJSON(pathPatternConfig, &Config{
-			AppID:   testAppID1,
-			OrgName: testOrgName1,
-		})
-		assert.NilError(t, err)
-		assert.Assert(t, entry != nil)
-
-		assert.NilError(t, storage.Put(context.Background(), entry))
 
 		_, err = b.HandleRequest(context.Background(), &logical.Request{
 			Storage:   storage,
@@ -174,7 +159,7 @@ func testBackendPathConfigCreateUpdate(t *testing.T, op logical.Operation) {
 		})
 		assert.NilError(t, err)
 
-		config, err := b.Config(context.Background(), storage)
+		config, err = b.Config(context.Background(), storage)
 		assert.NilError(t, err)
 		assert.Assert(t, config != nil)
 		assert.Equal(t, testAppID2, config.AppID)
@@ -196,7 +181,7 @@ func testBackendPathConfigCreateUpdate(t *testing.T, op logical.Operation) {
 		assert.Assert(t, is.Nil(resp))
 	})
 
-	t.Run("FailedStoragePersist Installation", func(t *testing.T) {
+	t.Run("FailedStoragePersist Installation/Organization", func(t *testing.T) {
 		t.Parallel()
 
 		b, storage := testBackend(t, failVerbPut)
@@ -214,14 +199,10 @@ func testBackendPathConfigCreateUpdate(t *testing.T, op logical.Operation) {
 		})
 		assert.ErrorContains(t, err, fmtErrConfPersist)
 		assert.Assert(t, is.Nil(resp))
-	})
 
-	t.Run("FailedStoragePersist Organization", func(t *testing.T) {
-		t.Parallel()
+		b, storage = testBackend(t, failVerbPut)
 
-		b, storage := testBackend(t, failVerbPut)
-
-		resp, err := b.HandleRequest(context.Background(), &logical.Request{
+		resp, err = b.HandleRequest(context.Background(), &logical.Request{
 			Storage:   storage,
 			Operation: op,
 			Path:      pathPatternConfig,
@@ -234,6 +215,10 @@ func testBackendPathConfigCreateUpdate(t *testing.T, op logical.Operation) {
 		})
 		assert.ErrorContains(t, err, fmtErrConfPersist)
 		assert.Assert(t, is.Nil(resp))
+	})
+
+	t.Run("FailedStoragePersist Organization", func(t *testing.T) {
+
 	})
 
 	t.Run("FailedValidation", func(t *testing.T) {
