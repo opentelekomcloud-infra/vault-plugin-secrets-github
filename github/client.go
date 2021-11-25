@@ -229,15 +229,6 @@ func (c *Client) getInstallationID(config *Config) (int, error) {
 
 	defer res.Body.Close()
 
-	type account struct {
-		Login string `json:"login"`
-	}
-
-	type installation struct {
-		ID      int     `json:"id"`
-		Account account `json:"account"`
-	}
-
 	var instResult []installation
 	if err := json.NewDecoder(res.Body).Decode(&instResult); err != nil {
 		return 0, err
@@ -249,6 +240,15 @@ func (c *Client) getInstallationID(config *Config) (int, error) {
 		}
 	}
 	return 0, fmt.Errorf("application wasn't installed in the organization")
+}
+
+type account struct {
+	Login string `json:"login"`
+}
+
+type installation struct {
+	ID      int     `json:"id"`
+	Account account `json:"account"`
 }
 
 // RevokeToken takes a valid access token and performs a revocation against

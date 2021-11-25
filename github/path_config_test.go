@@ -112,8 +112,22 @@ func testBackendPathConfigCreateUpdate(t *testing.T, op logical.Operation) {
 		assert.DeepEqual(t, testBaseURLValid, config.BaseURL)
 	})
 
-	t.Run("Exist Installation/Organization", func(t *testing.T) {
+	t.Run("Exist", func(t *testing.T) {
 		t.Parallel()
+		tcConfig := []map[string]interface{}{
+			{
+				keyAppID:   testAppID2,
+				keyInsID:   testInsID2,
+				keyPrvKey:  testPrvKeyValid,
+				keyBaseURL: testBaseURLValid,
+			},
+			{
+				keyAppID:   testAppID2,
+				keyOrgName: testOrgName2,
+				keyPrvKey:  testPrvKeyValid,
+				keyBaseURL: testBaseURLValid,
+			},
+		}
 
 		b, storage := testBackend(t)
 
@@ -126,45 +140,23 @@ func testBackendPathConfigCreateUpdate(t *testing.T, op logical.Operation) {
 
 		assert.NilError(t, storage.Put(context.Background(), entry))
 
-		_, err = b.HandleRequest(context.Background(), &logical.Request{
-			Storage:   storage,
-			Operation: op,
-			Path:      pathPatternConfig,
-			Data: map[string]interface{}{
-				keyAppID:   testAppID2,
-				keyInsID:   testInsID2,
-				keyPrvKey:  testPrvKeyValid,
-				keyBaseURL: testBaseURLValid,
-			},
-		})
-		assert.NilError(t, err)
+		for _, v := range tcConfig {
+			_, err = b.HandleRequest(context.Background(), &logical.Request{
+				Storage:   storage,
+				Operation: op,
+				Path:      pathPatternConfig,
+				Data:      v,
+			})
+			assert.NilError(t, err)
 
-		config, err := b.Config(context.Background(), storage)
-		assert.NilError(t, err)
-		assert.Assert(t, config != nil)
-		assert.Equal(t, testAppID2, config.AppID)
-		assert.Equal(t, testInsID2, config.InsID)
-		assert.DeepEqual(t, testBaseURLValid, config.BaseURL)
+			config, err := b.Config(context.Background(), storage)
+			assert.NilError(t, err)
+			assert.Assert(t, config != nil)
+			assert.Equal(t, testAppID2, config.AppID)
+			assert.Equal(t, testInsID2, config.InsID)
+			assert.DeepEqual(t, testBaseURLValid, config.BaseURL)
+		}
 
-		_, err = b.HandleRequest(context.Background(), &logical.Request{
-			Storage:   storage,
-			Operation: op,
-			Path:      pathPatternConfig,
-			Data: map[string]interface{}{
-				keyAppID:   testAppID2,
-				keyOrgName: testOrgName2,
-				keyPrvKey:  testPrvKeyValid,
-				keyBaseURL: testBaseURLValid,
-			},
-		})
-		assert.NilError(t, err)
-
-		config, err = b.Config(context.Background(), storage)
-		assert.NilError(t, err)
-		assert.Assert(t, config != nil)
-		assert.Equal(t, testAppID2, config.AppID)
-		assert.Equal(t, testOrgName2, config.OrgName)
-		assert.DeepEqual(t, testBaseURLValid, config.BaseURL)
 	})
 
 	t.Run("FailedStorageRetrieve", func(t *testing.T) {
@@ -181,43 +173,36 @@ func testBackendPathConfigCreateUpdate(t *testing.T, op logical.Operation) {
 		assert.Assert(t, is.Nil(resp))
 	})
 
-	t.Run("FailedStoragePersist Installation/Organization", func(t *testing.T) {
+	t.Run("FailedStoragePersist", func(t *testing.T) {
 		t.Parallel()
 
-		b, storage := testBackend(t, failVerbPut)
-
-		resp, err := b.HandleRequest(context.Background(), &logical.Request{
-			Storage:   storage,
-			Operation: op,
-			Path:      pathPatternConfig,
-			Data: map[string]interface{}{
+		tcConfig := []map[string]interface{}{
+			{
 				keyAppID:   testAppID2,
 				keyInsID:   testInsID2,
 				keyPrvKey:  testPrvKeyValid,
 				keyBaseURL: testBaseURLValid,
 			},
-		})
-		assert.ErrorContains(t, err, fmtErrConfPersist)
-		assert.Assert(t, is.Nil(resp))
-
-		b, storage = testBackend(t, failVerbPut)
-
-		resp, err = b.HandleRequest(context.Background(), &logical.Request{
-			Storage:   storage,
-			Operation: op,
-			Path:      pathPatternConfig,
-			Data: map[string]interface{}{
+			{
 				keyAppID:   testAppID2,
 				keyOrgName: testOrgName2,
 				keyPrvKey:  testPrvKeyValid,
 				keyBaseURL: testBaseURLValid,
 			},
-		})
-		assert.ErrorContains(t, err, fmtErrConfPersist)
-		assert.Assert(t, is.Nil(resp))
-	})
+		}
 
-	t.Run("FailedStoragePersist Organization", func(t *testing.T) {
+		b, storage := testBackend(t, failVerbPut)
+
+		for _, v := range tcConfig {
+			resp, err := b.HandleRequest(context.Background(), &logical.Request{
+				Storage:   storage,
+				Operation: op,
+				Path:      pathPatternConfig,
+				Data:      v,
+			})
+			assert.ErrorContains(t, err, fmtErrConfPersist)
+			assert.Assert(t, is.Nil(resp))
+		}
 
 	})
 
