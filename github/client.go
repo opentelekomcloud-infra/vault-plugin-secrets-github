@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/golang-jwt/jwt/v4"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -14,6 +13,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/golang-jwt/jwt/v4"
 
 	"github.com/bradleyfalzon/ghinstallation"
 	"github.com/hashicorp/vault/sdk/logical"
@@ -242,18 +243,12 @@ func (c *Client) getInstallationID(config *Config) (int, error) {
 		return 0, err
 	}
 
-	var instID int
 	for _, v := range instResult {
 		if v.Account.Login == config.OrgName {
-			instID = v.ID
-			break
+			return v.ID, nil
 		}
 	}
-	if instID == 0 {
-		return 0, fmt.Errorf("installation ID for the organization wasn't found")
-	}
-
-	return instID, nil
+	return 0, fmt.Errorf("application wasn't installed in the organization")
 }
 
 // RevokeToken takes a valid access token and performs a revocation against
