@@ -1,0 +1,22 @@
+---
+- project:
+    merge-mode: squash-merge
+    vars:
+      functest_project_name: "eu-de_zuul_go"
+    default-branch: main
+    check:
+      jobs:
+        - golangci-lint:
+            vars:
+              golangci_lint_version: 1.41.1
+            nodeset: fedora-pod
+        - golang-make-test
+        - golang-make-vet
+    gate:
+      jobs:
+        - golangci-lint:
+            vars:
+              golangci_lint_version: 1.41.1
+            nodeset: fedora-pod
+        - golang-make-test
+        - golang-make-vet
