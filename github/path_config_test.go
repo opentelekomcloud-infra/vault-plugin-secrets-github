@@ -133,29 +133,17 @@ func testBackendPathConfigCreateUpdate(t *testing.T, op logical.Operation) {
 
 			b, storage := testBackend(t)
 
-			entry := new(logical.StorageEntry)
-			if name == "Installation" {
-				entry, err := logical.StorageEntryJSON(pathPatternConfig, &Config{
-					AppID: testAppID1,
-					InsID: testInsID1,
-				})
-				assert.NilError(t, err)
-				assert.Assert(t, entry != nil)
-
-			} else {
-				entry, err := logical.StorageEntryJSON(pathPatternConfig, &Config{
-					AppID:   testAppID1,
-					OrgName: testOrgName1,
-				})
-				assert.NilError(t, err)
-				assert.Assert(t, entry != nil)
-
-				assert.NilError(t, storage.Put(context.Background(), entry))
-			}
+			entry, err := logical.StorageEntryJSON(pathPatternConfig, &Config{
+				AppID:   testAppID1,
+				InsID:   testInsID1,
+				OrgName: testOrgName1,
+			})
+			assert.NilError(t, err)
+			assert.Assert(t, entry != nil)
 
 			assert.NilError(t, storage.Put(context.Background(), entry))
 
-			_, err := b.HandleRequest(context.Background(), &logical.Request{
+			_, err = b.HandleRequest(context.Background(), &logical.Request{
 				Storage:   storage,
 				Operation: op,
 				Path:      pathPatternConfig,
