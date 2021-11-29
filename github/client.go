@@ -189,7 +189,7 @@ func (c *Client) Token(ctx context.Context, opts *tokenOptions) (*logical.Respon
 }
 
 func (c *Client) getInstallationID(config *Config) (int, error) {
-	expires := jwt.NewNumericDate(time.Now().Add(time.Second * time.Duration(120)))
+	expires := jwt.NewNumericDate(time.Now().Add(time.Minute))
 	issuedAt := jwt.NewNumericDate(time.Now().Add(time.Second * -10))
 	claims := &jwt.RegisteredClaims{
 		ExpiresAt: expires,
@@ -213,7 +213,7 @@ func (c *Client) getInstallationID(config *Config) (int, error) {
 		return 0, err
 	}
 
-	req, err := http.NewRequest(http.MethodGet, instURL.String(), nil)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, instURL.String(), nil)
 	if err != nil {
 		return 0, err
 	}

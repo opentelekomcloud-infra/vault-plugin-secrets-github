@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"sort"
 	"strings"
 
@@ -21,7 +22,7 @@ var (
 func withFieldValidator(f framework.OperationFunc) framework.OperationFunc {
 	return func(ctx context.Context, req *logical.Request, d *framework.FieldData) (*logical.Response, error) {
 		if err := validateFields(req, d); err != nil {
-			return nil, logical.CodedError(400, err.Error())
+			return nil, logical.CodedError(http.StatusBadRequest, err.Error())
 		}
 
 		return f(ctx, req, d)
