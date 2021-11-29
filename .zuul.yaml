@@ -7,10 +7,6 @@
     check:
       jobs:
         - otc-golangci-lint
-        - golang-make-test
-        - golang-make-vet
     gate:
       jobs:
         - otc-golangci-lint
-        - golang-make-test
-        - golang-make-vet
