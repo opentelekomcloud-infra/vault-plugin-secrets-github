@@ -26,7 +26,6 @@ const (
 	descPerms   = "The permissions granted to the token."
 )
 
-//nolint:gosec
 const pathTokenHelpSyn = `
 Create and return a token using the GitHub secrets plugin.
 `

@@ -48,7 +48,7 @@ var revokeDuration = prometheus.NewSummaryVec(prometheus.SummaryOpts{
 	Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001}, //nolint:gomnd
 }, []string{"success"})
 
-func init() { //nolint:gochecknoinits
+func init() {
 	// Register standard and custom metric collectors globally.
 	prometheus.MustRegister(
 		version.NewCollector(prefixMetrics),

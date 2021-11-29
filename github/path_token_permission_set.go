@@ -13,7 +13,6 @@ import (
 
 // pathPatternToken is the string used to define the base path of the token
 // endpoint.
-//nolint:gosec
 const pathTokenPermissionSetHelpSyn = `
 Create and return a token using the GitHub secrets plugin.
 `
