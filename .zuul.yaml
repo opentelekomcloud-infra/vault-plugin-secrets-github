@@ -6,17 +6,11 @@
     default-branch: main
     check:
       jobs:
-        - golangci-lint:
-            vars:
-              golangci_lint_version: 1.41.1
-            nodeset: fedora-pod
+        - otc-golangci-lint
         - golang-make-test
         - golang-make-vet
     gate:
       jobs:
-        - golangci-lint:
-            vars:
-              golangci_lint_version: 1.41.1
-            nodeset: fedora-pod
+        - otc-golangci-lint
         - golang-make-test
         - golang-make-vet
