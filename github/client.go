@@ -86,11 +86,6 @@ func NewClient(config *Config) (c *Client, err error) {
 		config.InsID = insID
 	}
 
-	_, err = c.url()
-	if err != nil {
-		return nil, err
-	}
-
 	if c.revocationURL, err = url.ParseRequestURI(fmt.Sprintf(
 		"%s/installation/token",
 		strings.TrimSuffix(fmt.Sprint(config.BaseURL), "/"),
