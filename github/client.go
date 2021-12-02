@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/bradleyfalzon/ghinstallation"
-	"github.com/circonus-labs/circonus-gometrics/api/config"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/hashicorp/vault/sdk/logical"
 )
@@ -49,7 +48,7 @@ type Client struct {
 func (c *Client) url() (*url.URL, error) {
 	tokenUrl, err := url.ParseRequestURI(fmt.Sprintf(
 		"%s/app/installations/%v/access_tokens",
-		strings.TrimSuffix(fmt.Sprint(config.BaseURL), "/"),
+		strings.TrimSuffix(fmt.Sprint(c.BaseURL), "/"),
 		c.InsID,
 	))
 	if err != nil {
