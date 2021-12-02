@@ -5,6 +5,7 @@ go 1.16
 require (
 	github.com/armon/go-metrics v0.3.8 // indirect
 	github.com/bradleyfalzon/ghinstallation v1.1.1
+	github.com/circonus-labs/circonus-gometrics v2.3.1+incompatible
 	github.com/fatih/color v1.11.0 // indirect
 	github.com/golang-jwt/jwt/v4 v4.1.0
 	github.com/golang/snappy v0.0.3 // indirect

@@ -89,7 +89,9 @@ func TestNewClient(t *testing.T) {
 			} else {
 				assert.NilError(t, err)
 				assert.Assert(t, c != nil)
-				assert.Equal(t, c.url.String(), tc.url)
+				tokenUrl, err := c.url()
+				assert.NilError(t, err)
+				assert.Equal(t, tokenUrl.String(), tc.url)
 			}
 		})
 	}

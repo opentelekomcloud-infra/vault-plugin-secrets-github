@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/bradleyfalzon/ghinstallation"
+	"github.com/circonus-labs/circonus-gometrics/api/config"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/hashicorp/vault/sdk/logical"
 )
@@ -34,9 +35,6 @@ var (
 type Client struct {
 	*Config
 
-	// URL is the access token URL for this client.
-	url *url.URL
-
 	// Transport is the HTTP transport used for token requests.
 	transport http.RoundTripper
 
@@ -45,6 +43,19 @@ type Client struct {
 
 	// RevocationTransport is the HTTP transport used for revocation requests.
 	revocationTransport http.RoundTripper
+}
+
+// URL is the access token URL for this client.
+func (c *Client) url() (*url.URL, error) {
+	tokenUrl, err := url.ParseRequestURI(fmt.Sprintf(
+		"%s/app/installations/%v/access_tokens",
+		strings.TrimSuffix(fmt.Sprint(config.BaseURL), "/"),
+		c.InsID,
+	))
+	if err != nil {
+		return nil, err
+	}
+	return tokenUrl, nil
 }
 
 // NewClient returns a newly constructed client from the provided config. It
@@ -56,6 +67,7 @@ func NewClient(config *Config) (c *Client, err error) {
 	}
 
 	c = &Client{
+		Config:              config,
 		revocationTransport: http.DefaultTransport,
 	}
 
@@ -67,19 +79,16 @@ func NewClient(config *Config) (c *Client, err error) {
 		return nil, err
 	}
 
-	insID := config.InsID
-	if config.OrgName != "" && insID == 0 {
-		insID, err = c.getInstallationID(config)
+	if config.OrgName != "" && config.InsID == 0 {
+		insID, err := c.getInstallationID(config)
 		if err != nil {
 			return nil, err
 		}
+		config.InsID = insID
 	}
 
-	if c.url, err = url.ParseRequestURI(fmt.Sprintf(
-		"%s/app/installations/%v/access_tokens",
-		strings.TrimSuffix(fmt.Sprint(config.BaseURL), "/"),
-		insID,
-	)); err != nil {
+	_, err = c.url()
+	if err != nil {
 		return nil, err
 	}
 
@@ -130,8 +139,12 @@ func (c *Client) Token(ctx context.Context, opts *tokenOptions) (*logical.Respon
 		}
 	}
 
+	tokenUrl, err := c.url()
+	if err != nil {
+		return nil, err
+	}
 	// Build the token request.
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.url.String(), body)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, tokenUrl.String(), body)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", errUnableToBuildAccessTokenReq, err)
 	}
