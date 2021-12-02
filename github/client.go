@@ -32,10 +32,7 @@ var (
 
 // Client encapsulates an HTTP client for talking to the configured GitHub App.
 type Client struct {
-	*Config
-
-	// URL is the access token URL for this client.
-	url *url.URL
+	config *Config
 
 	// Transport is the HTTP transport used for token requests.
 	transport http.RoundTripper
@@ -47,6 +44,19 @@ type Client struct {
 	revocationTransport http.RoundTripper
 }
 
+// URL is the access token URL for this client.
+func (c *Client) url() (*url.URL, error) {
+	tokenUrl, err := url.ParseRequestURI(fmt.Sprintf(
+		"%s/app/installations/%v/access_tokens",
+		strings.TrimSuffix(fmt.Sprint(c.config.BaseURL), "/"),
+		c.config.InsID,
+	))
+	if err != nil {
+		return nil, err
+	}
+	return tokenUrl, nil
+}
+
 // NewClient returns a newly constructed client from the provided config. It
 // will error if it fails to validate necessary configuration formats like URIs
 // and PEM encoded private keys.
@@ -56,36 +66,29 @@ func NewClient(config *Config) (c *Client, err error) {
 	}
 
 	c = &Client{
+		config:              config,
 		revocationTransport: http.DefaultTransport,
 	}
 
 	if c.transport, err = ghinstallation.NewAppsTransport(
 		http.DefaultTransport,
-		int64(config.AppID),
-		[]byte(config.PrvKey),
+		int64(c.config.AppID),
+		[]byte(c.config.PrvKey),
 	); err != nil {
 		return nil, err
 	}
 
-	insID := config.InsID
-	if config.OrgName != "" && insID == 0 {
-		insID, err = c.getInstallationID(config)
+	if c.config.OrgName != "" && c.config.InsID == 0 {
+		insID, err := c.getInstallationID()
 		if err != nil {
 			return nil, err
 		}
-	}
-
-	if c.url, err = url.ParseRequestURI(fmt.Sprintf(
-		"%s/app/installations/%v/access_tokens",
-		strings.TrimSuffix(fmt.Sprint(config.BaseURL), "/"),
-		insID,
-	)); err != nil {
-		return nil, err
+		c.config.InsID = insID
 	}
 
 	if c.revocationURL, err = url.ParseRequestURI(fmt.Sprintf(
 		"%s/installation/token",
-		strings.TrimSuffix(fmt.Sprint(config.BaseURL), "/"),
+		strings.TrimSuffix(fmt.Sprint(c.config.BaseURL), "/"),
 	)); err != nil {
 		return nil, err
 	}
@@ -130,8 +133,12 @@ func (c *Client) Token(ctx context.Context, opts *tokenOptions) (*logical.Respon
 		}
 	}
 
+	tokenUrl, err := c.url()
+	if err != nil {
+		return nil, err
+	}
 	// Build the token request.
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.url.String(), body)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, tokenUrl.String(), body)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", errUnableToBuildAccessTokenReq, err)
 	}
@@ -188,23 +195,23 @@ func (c *Client) Token(ctx context.Context, opts *tokenOptions) (*logical.Respon
 	return tokenRes, nil
 }
 
-func (c *Client) getInstallationID(config *Config) (int, error) {
+func (c *Client) getInstallationID() (int, error) {
 	expires := jwt.NewNumericDate(time.Now().Add(time.Minute))
 	issuedAt := jwt.NewNumericDate(time.Now().Add(time.Second * -10))
 	claims := &jwt.RegisteredClaims{
 		ExpiresAt: expires,
 		IssuedAt:  issuedAt,
-		Issuer:    strconv.Itoa(config.AppID),
+		Issuer:    strconv.Itoa(c.config.AppID),
 	}
 
-	signKey, err := jwt.ParseRSAPrivateKeyFromPEM([]byte(config.PrvKey))
+	signKey, err := jwt.ParseRSAPrivateKeyFromPEM([]byte(c.config.PrvKey))
 	if err != nil {
 		return 0, err
 	}
 
 	instURL, err := url.ParseRequestURI(fmt.Sprintf(
 		"%s/app/installations",
-		strings.TrimSuffix(config.BaseURL, "/"),
+		strings.TrimSuffix(c.config.BaseURL, "/"),
 	))
 	if err != nil {
 		return 0, err
@@ -237,7 +244,7 @@ func (c *Client) getInstallationID(config *Config) (int, error) {
 	}
 
 	for _, v := range instResult {
-		if v.Account.Login == config.OrgName {
+		if v.Account.Login == c.config.OrgName {
 			return v.ID, nil
 		}
 	}
