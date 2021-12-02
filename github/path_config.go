@@ -3,6 +3,7 @@ package github
 import (
 	"context"
 	"fmt"
+	"net/http"
 
 	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/logical"
@@ -122,7 +123,7 @@ func (b *backend) pathConfigWrite(
 	// Update the configuration.
 	changed, err := c.Update(d)
 	if err != nil {
-		return nil, logical.CodedError(400, err.Error())
+		return nil, logical.CodedError(http.StatusBadRequest, err.Error())
 	}
 
 	// Persist only if changed.
