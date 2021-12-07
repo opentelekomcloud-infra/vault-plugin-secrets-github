@@ -137,6 +137,7 @@ func (c *Client) Token(ctx context.Context, opts *tokenOptions) (*logical.Respon
 	}
 
 	if opts.Organization != "" && c.config.InsID == 0 {
+		c.config.OrgName = opts.Organization
 		insID, err := c.getInstallationID()
 		if err != nil {
 			return nil, err
