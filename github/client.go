@@ -45,11 +45,11 @@ type Client struct {
 }
 
 // URL is the access token URL for this client.
-func (c *Client) url() (*url.URL, error) {
+func (c *Client) url(insID int) (*url.URL, error) {
 	tokenUrl, err := url.ParseRequestURI(fmt.Sprintf(
 		"%s/app/installations/%v/access_tokens",
 		strings.TrimSuffix(fmt.Sprint(c.config.BaseURL), "/"),
-		c.config.InsID,
+		insID,
 	))
 	if err != nil {
 		return nil, err
@@ -79,7 +79,7 @@ func NewClient(config *Config) (c *Client, err error) {
 	}
 
 	if c.config.OrgName != "" && c.config.InsID == 0 {
-		insID, err := c.getInstallationID()
+		insID, err := c.getInstallationID(c.config.OrgName)
 		if err != nil {
 			return nil, err
 		}
@@ -136,16 +136,16 @@ func (c *Client) Token(ctx context.Context, opts *tokenOptions) (*logical.Respon
 		}
 	}
 
-	if opts.Organization != "" && c.config.InsID == 0 {
-		c.config.OrgName = opts.Organization
-		insID, err := c.getInstallationID()
+	insID := c.config.InsID
+	if opts != nil && opts.Organization != "" && insID == 0 {
+		var err error
+		insID, err = c.getInstallationID(opts.Organization)
 		if err != nil {
 			return nil, err
 		}
-		c.config.InsID = insID
 	}
 
-	tokenUrl, err := c.url()
+	tokenUrl, err := c.url(insID)
 	if err != nil {
 		return nil, err
 	}
@@ -207,7 +207,7 @@ func (c *Client) Token(ctx context.Context, opts *tokenOptions) (*logical.Respon
 	return tokenRes, nil
 }
 
-func (c *Client) getInstallationID() (int, error) {
+func (c *Client) getInstallationID(orgName string) (int, error) {
 	expires := jwt.NewNumericDate(time.Now().Add(time.Minute))
 	issuedAt := jwt.NewNumericDate(time.Now().Add(time.Second * -10))
 	claims := &jwt.RegisteredClaims{
@@ -256,7 +256,7 @@ func (c *Client) getInstallationID() (int, error) {
 	}
 
 	for _, v := range instResult {
-		if v.Account.Login == c.config.OrgName {
+		if v.Account.Login == orgName {
 			return v.ID, nil
 		}
 	}
