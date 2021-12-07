@@ -108,6 +108,10 @@ func (b *backend) pathPermissionSet() *framework.Path {
 	return &framework.Path{
 		Pattern: fmt.Sprintf("permissionset/%s", framework.GenericNameRegex("name")),
 		Fields: map[string]*framework.FieldSchema{
+			keyOrgName: {
+				Type:        framework.TypeString,
+				Description: descOrgName,
+			},
 			"name": {
 				Type:        framework.TypeString,
 				Description: "Required. Name of the permission set.",
@@ -232,6 +236,10 @@ func (b *backend) pathPermissionSetCreateUpdate(
 
 	if repos, ok := d.GetOk(keyRepos); ok {
 		ps.TokenOptions.Repositories = repos.([]string)
+	}
+
+	if org, ok := d.GetOk(keyOrgName); ok {
+		ps.TokenOptions.Organization = org.(string)
 	}
 
 	// Save permissions set

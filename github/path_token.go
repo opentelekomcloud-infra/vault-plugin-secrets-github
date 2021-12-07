@@ -48,6 +48,10 @@ func (b *backend) pathToken() *framework.Path {
 	return &framework.Path{
 		Pattern: pathPatternToken,
 		Fields: map[string]*framework.FieldSchema{
+			keyOrgName: {
+				Type:        framework.TypeString,
+				Description: descOrgName,
+			},
 			keyRepos: {
 				Type:        framework.TypeCommaStringSlice,
 				Description: descRepos,
@@ -105,6 +109,10 @@ func (b *backend) pathTokenWrite(
 
 	if repos, ok := d.GetOk(keyRepos); ok {
 		opts.Repositories = repos.([]string)
+	}
+
+	if org, ok := d.GetOk(keyOrgName); ok {
+		opts.Organization = org.(string)
 	}
 
 	// Instrument and log the token API call, recording status, duration and

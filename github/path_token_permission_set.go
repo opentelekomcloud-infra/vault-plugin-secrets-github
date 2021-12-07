@@ -35,6 +35,10 @@ func (b *backend) pathTokenPermissionSet() *framework.Path {
 	return &framework.Path{
 		Pattern: fmt.Sprintf("%s/%s", pathPatternToken, framework.GenericNameRegex("permissionset")),
 		Fields: map[string]*framework.FieldSchema{
+			keyOrgName: {
+				Type:        framework.TypeString,
+				Description: descOrgName,
+			},
 			"permissionset": {
 				Type:        framework.TypeString,
 				Description: "Required. Name of the permission set.",
@@ -79,6 +83,10 @@ func (b *backend) pathTokenPermissionSetWrite(
 	}
 
 	opts := ps.TokenOptions
+
+	if org, ok := d.GetOk(keyOrgName); ok {
+		opts.Organization = org.(string)
+	}
 
 	// Instrument and log the token API call, recording status, duration and
 	// whether any constraints (permissions, repositories, repository IDs) were

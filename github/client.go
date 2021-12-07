@@ -106,6 +106,9 @@ type tokenOptions struct {
 	RepositoryIDs []int `json:"repository_ids,omitempty"`
 	// Repositories are the repository names that the token can access.
 	Repositories []string `json:"repositories,omitempty"`
+
+	//Organization name where access token should be granted.
+	Organization string `json:"-"`
 }
 
 // statusCode models an HTTP response code.
@@ -131,6 +134,14 @@ func (c *Client) Token(ctx context.Context, opts *tokenOptions) (*logical.Respon
 		if err := json.NewEncoder(body).Encode(opts); err != nil {
 			return nil, err
 		}
+	}
+
+	if opts.Organization != "" && c.config.InsID == 0 {
+		insID, err := c.getInstallationID()
+		if err != nil {
+			return nil, err
+		}
+		c.config.InsID = insID
 	}
 
 	tokenUrl, err := c.url()
