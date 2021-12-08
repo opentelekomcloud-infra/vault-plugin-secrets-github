@@ -112,8 +112,7 @@ func testBackendPathTokenWrite(t *testing.T, op logical.Operation) {
 				keyPerms:   "not a map of string to string",
 			},
 		})
-		assert.Assert(t, is.Nil(r))
-		assert.Assert(t, err != nil)
+		assert.Assert(t, r.Data["error"] != nil)
 	})
 
 	t.Run("FailedCreate", func(t *testing.T) {
