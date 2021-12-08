@@ -7,6 +7,10 @@
     check:
       jobs:
         - otc-golangci-lint
+        - goreleaser-build:
+            nodeset: fedora-32-large
     gate:
       jobs:
         - otc-golangci-lint
+        - goreleaser-build:
+              nodeset: fedora-32-large
