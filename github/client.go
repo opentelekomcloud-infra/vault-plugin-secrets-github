@@ -23,8 +23,10 @@ var (
 	errUnableToBuildAccessTokenReq    = errors.New("unable to build access token request")
 	errUnableToBuildAccessTokenRevReq = errors.New("unable to build access token revocation request")
 	errUnableToCreateAccessToken      = errors.New("unable to create access token")
+	errUnableToGetIntegrations        = errors.New("unable to get integrations")
 	errUnableToRevokeAccessToken      = errors.New("unable to revoke access token")
 	errUnableToDecodeAccessTokenRes   = errors.New("unable to decode access token response")
+	errUnableToDecodeIntegrationRes   = errors.New("unable to decode integrations response")
 	errBody                           = errors.New("error body")
 	errClientConfigNil                = errors.New("client configuration was nil")
 	errNoAppInstalled                 = errors.New("application wasn't installed in the organization")
@@ -45,11 +47,11 @@ type Client struct {
 }
 
 // URL is the access token URL for this client.
-func (c *Client) url() (*url.URL, error) {
+func (c *Client) url(insID int) (*url.URL, error) {
 	tokenUrl, err := url.ParseRequestURI(fmt.Sprintf(
 		"%s/app/installations/%v/access_tokens",
 		strings.TrimSuffix(fmt.Sprint(c.config.BaseURL), "/"),
-		c.config.InsID,
+		insID,
 	))
 	if err != nil {
 		return nil, err
@@ -79,7 +81,7 @@ func NewClient(config *Config) (c *Client, err error) {
 	}
 
 	if c.config.OrgName != "" && c.config.InsID == 0 {
-		insID, err := c.getInstallationID()
+		insID, err := c.getInstallationID(c.config.OrgName)
 		if err != nil {
 			return nil, err
 		}
@@ -106,6 +108,9 @@ type tokenOptions struct {
 	RepositoryIDs []int `json:"repository_ids,omitempty"`
 	// Repositories are the repository names that the token can access.
 	Repositories []string `json:"repositories,omitempty"`
+
+	//Organization name where access token should be granted.
+	Organization string `json:"-"`
 }
 
 // statusCode models an HTTP response code.
@@ -133,7 +138,16 @@ func (c *Client) Token(ctx context.Context, opts *tokenOptions) (*logical.Respon
 		}
 	}
 
-	tokenUrl, err := c.url()
+	insID := c.config.InsID
+	if opts != nil && opts.Organization != "" && insID == 0 {
+		var err error
+		insID, err = c.getInstallationID(opts.Organization)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	tokenUrl, err := c.url(insID)
 	if err != nil {
 		return nil, err
 	}
@@ -195,7 +209,7 @@ func (c *Client) Token(ctx context.Context, opts *tokenOptions) (*logical.Respon
 	return tokenRes, nil
 }
 
-func (c *Client) getInstallationID() (int, error) {
+func (c *Client) getInstallationID(orgName string) (int, error) {
 	expires := jwt.NewNumericDate(time.Now().Add(time.Minute))
 	issuedAt := jwt.NewNumericDate(time.Now().Add(time.Second * -10))
 	claims := &jwt.RegisteredClaims{
@@ -238,13 +252,26 @@ func (c *Client) getInstallationID() (int, error) {
 
 	defer res.Body.Close()
 
+	if statusCode(res.StatusCode).Unsuccessful() {
+		bodyBytes, err := ioutil.ReadAll(res.Body)
+		if err != nil {
+			return 0, fmt.Errorf("%w: %s: error reading error response body: %v",
+				errUnableToGetIntegrations, res.Status, err)
+		}
+
+		bodyErr := fmt.Errorf("%w: %v", errBody, string(bodyBytes))
+
+		return 0, fmt.Errorf("%w: %s: %v", errUnableToGetIntegrations,
+			res.Status, bodyErr)
+	}
+
 	var instResult []installation
 	if err := json.NewDecoder(res.Body).Decode(&instResult); err != nil {
-		return 0, err
+		return 0, fmt.Errorf("%w: %v", errUnableToDecodeIntegrationRes, err)
 	}
 
 	for _, v := range instResult {
-		if v.Account.Login == c.config.OrgName {
+		if v.Account.Login == orgName {
 			return v.ID, nil
 		}
 	}

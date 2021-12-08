@@ -75,6 +75,16 @@ func TestNewClient(t *testing.T) {
 			},
 			err: errors.New("parse"),
 		},
+		{
+			name: "OrgName",
+			conf: &Config{
+				AppID:   testAppID1,
+				OrgName: testOrgName1,
+				PrvKey:  testPrvKeyValid,
+				BaseURL: testBaseURLValid,
+			},
+			err: errors.New("integrations"),
+		},
 	}
 
 	for _, tc := range cases {
@@ -89,7 +99,7 @@ func TestNewClient(t *testing.T) {
 			} else {
 				assert.NilError(t, err)
 				assert.Assert(t, c != nil)
-				tokenUrl, err := c.url()
+				tokenUrl, err := c.url(tc.conf.InsID)
 				assert.NilError(t, err)
 				assert.Equal(t, tokenUrl.String(), tc.url)
 			}
@@ -195,6 +205,16 @@ func TestClient_Token(t *testing.T) {
 			err: errUnableToDecodeAccessTokenRes,
 		},
 		{
+			name: "ErrorInError",
+			ctx:  context.Background(),
+			handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				t.Helper()
+				w.Header().Set("Content-Length", "1")
+				w.WriteHeader(http.StatusForbidden)
+			}),
+			err: errUnableToCreateAccessToken,
+		},
+		{
 			name: "EmptyResponse",
 			ctx:  context.Background(),
 			handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -205,6 +225,19 @@ func TestClient_Token(t *testing.T) {
 		},
 		{
 			name: "4xxResponse",
+			ctx:  context.Background(),
+			handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				t.Helper()
+				// 422 is the most likely GitHub Apps API 4xx response (when
+				// presented with valid auth) and it occurs when the user has
+				// requested token permissions or repositories the installation
+				// does not have scope over.
+				w.WriteHeader(http.StatusUnprocessableEntity)
+			}),
+			err: errUnableToCreateAccessToken,
+		},
+		{
+			name: "OrgInTokenOpts",
 			ctx:  context.Background(),
 			handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				t.Helper()
@@ -296,6 +329,16 @@ func TestClient_RevokeToken(t *testing.T) {
 			err:  errUnableToBuildAccessTokenRevReq,
 		},
 		{
+			name: "ErrorInError",
+			ctx:  context.Background(),
+			handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				t.Helper()
+				w.Header().Set("Content-Length", "1")
+				w.WriteHeader(http.StatusForbidden)
+			}),
+			err: errUnableToRevokeAccessToken,
+		},
+		{
 			name: "401Response",
 			ctx:  context.Background(),
 			handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -343,6 +386,192 @@ func TestClient_RevokeToken(t *testing.T) {
 			}
 
 			assert.DeepEqual(t, res, tc.res)
+		})
+	}
+}
+
+func TestClient_Organization(t *testing.T) {
+	var cases = []struct {
+		name    string
+		handler http.HandlerFunc
+		ctx     context.Context
+		err     error
+	}{
+		{
+			name: "HappyPath",
+			ctx:  context.Background(),
+			handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				t.Helper()
+
+				assert.Equal(t, r.Method, http.MethodGet)
+				assert.Equal(t, r.URL.Path, "/app/installations")
+				assert.Assert(t, r.Header.Get("Authorization") != "")
+
+				w.Header().Set("Content-Type", "application/json")
+				body, _ := json.Marshal([]map[string]interface{}{
+					{
+						"id": testInsID1,
+						"account": map[string]interface{}{
+							"login": testOrgName1,
+						},
+					},
+				})
+				w.WriteHeader(http.StatusOK)
+				w.Write(body)
+			}),
+		},
+		{
+			name: "ZeroPath",
+			ctx:  context.Background(),
+			handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				t.Helper()
+
+				assert.Equal(t, r.Method, http.MethodGet)
+				assert.Equal(t, r.URL.Path, "/app/installations")
+				assert.Assert(t, r.Header.Get("Authorization") != "")
+
+				w.Header().Set("Content-Type", "application/json")
+				body, _ := json.Marshal([]map[string]interface{}{
+					{
+						"id": testInsID1,
+						"account": map[string]interface{}{
+							"login": testOrgName2,
+						},
+					},
+				})
+				w.WriteHeader(http.StatusOK)
+				w.Write(body)
+			}),
+			err: errors.New("application"),
+		},
+		{
+			name: "EmptyResponse",
+			ctx:  context.Background(),
+			handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				t.Helper()
+				w.WriteHeader(http.StatusOK)
+			}),
+			err: errUnableToDecodeIntegrationRes,
+		},
+		{
+			name: "ErrorInError",
+			ctx:  context.Background(),
+			handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				t.Helper()
+				w.Header().Set("Content-Length", "1")
+				w.WriteHeader(http.StatusForbidden)
+			}),
+			err: errUnableToGetIntegrations,
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ts := httptest.NewServer(tc.handler)
+			defer ts.Close()
+
+			_, err := NewClient(&Config{
+				AppID:   testAppID1,
+				OrgName: testOrgName1,
+				PrvKey:  testPrvKeyValid,
+				BaseURL: ts.URL,
+			})
+
+			if tc.err != nil {
+				assert.ErrorContains(t, err, tc.err.Error())
+			} else {
+				assert.NilError(t, err)
+			}
+		})
+	}
+}
+
+func TestClient_TokenEmptyConfig(t *testing.T) {
+	t.Parallel()
+
+	var cases = []struct {
+		name    string
+		opts    *tokenOptions
+		handler http.HandlerFunc
+		res     *logical.Response
+		ctx     context.Context
+		err     error
+	}{
+		{
+			name: "HappyPathWithOrganization",
+			ctx:  context.Background(),
+			opts: &tokenOptions{
+				Organization: testOrgName1,
+			},
+			handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				t.Helper()
+
+				if r.Method == http.MethodGet && r.URL.Path == "/app/installations" {
+					assert.Assert(t, r.Header.Get("Authorization") != "")
+
+					w.Header().Set("Content-Type", "application/json")
+					body, _ := json.Marshal([]map[string]interface{}{
+						{
+							"id": testInsID1,
+							"account": map[string]interface{}{
+								"login": testOrgName1,
+							},
+						},
+					})
+					w.WriteHeader(http.StatusOK)
+					w.Write(body)
+				} else if r.Method == http.MethodPost && r.URL.Path == fmt.Sprintf("/%s", testPath) {
+					assert.Assert(t, r.Header.Get("Authorization") != "")
+
+					w.Header().Set("Content-Type", "application/json")
+					body, _ := json.Marshal(map[string]interface{}{
+						"token":      testToken,
+						"expires_at": testTokenExp,
+					})
+					w.WriteHeader(http.StatusCreated)
+					w.Write(body)
+				}
+
+			}),
+			res: &logical.Response{
+				Data: map[string]interface{}{
+					"token":      testToken,
+					"expires_at": testTokenExp,
+				},
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ts := httptest.NewServer(tc.handler)
+			defer ts.Close()
+
+			client, err := NewClient(&Config{
+				AppID:   testAppID1,
+				PrvKey:  testPrvKeyValid,
+				BaseURL: ts.URL,
+			})
+			assert.NilError(t, err)
+
+			res, err := client.Token(tc.ctx, tc.opts)
+
+			if tc.err != nil {
+				assert.ErrorContains(t, err, tc.err.Error())
+			} else {
+				assert.NilError(t, err)
+			}
+
+			if tc.res != nil && tc.res.Data != nil {
+				assert.Equal(t, res.Data["expires_at"], tc.res.Data["expires_at"])
+				assert.Equal(t, res.Data["token"], tc.res.Data["token"])
+			}
 		})
 	}
 }
