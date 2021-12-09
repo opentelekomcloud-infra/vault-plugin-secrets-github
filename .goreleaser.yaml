@@ -1,5 +1,3 @@
-project_name: "vault-plugin-secrets-github"
-
 before:
   hooks:
     - go mod tidy
@@ -59,3 +57,8 @@ signs:
       - "${signature}"
       - "--detach-sign"
       - "${artifact}"
+release:
+  # Visit your project's GitHub Releases page to publish this release.
+  github:
+    owner: opentelekomcloud-infra
+    name: vault-plugin-secrets-github
