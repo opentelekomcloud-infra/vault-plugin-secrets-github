@@ -13,4 +13,8 @@
       jobs:
         - otc-golangci-lint
         - goreleaser-build:
-              nodeset: fedora-32-large
+            nodeset: fedora-32-large
+    tag:
+      jobs:
+        - release-goreleaser:
+            nodeset: fedora-32-large
