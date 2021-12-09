@@ -1,0 +1,65 @@
+before:
+  hooks:
+    - go mod tidy
+builds:
+  - env:
+      - CGO_ENABLED=0
+    mod_timestamp: '{{ .CommitTimestamp }}'
+    flags:
+      - -trimpath
+    ldflags:
+      - >
+        -s -w
+        -X {{ .ModulePath }}/github.projectName={{ .ProjectName }}
+        -X {{ .ModulePath }}/github.projectDocs={{ .GitURL }}
+        -X github.com/prometheus/common/version.Version={{ .Version }}
+        -X github.com/prometheus/common/version.Revision={{ .ShortCommit }}
+        -X github.com/prometheus/common/version.BuildDate={{ .Date }}
+        -X github.com/prometheus/common/version.BuildUser=zuul
+        -X github.com/prometheus/common/version.Branch={{ .Branch }}
+    goos:
+      - freebsd
+      - windows
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - '386'
+      - arm
+      - arm64
+    ignore:
+      - goos: darwin
+        goarch: '386'
+      # Linux only:
+      # arm 8
+      - goos: freebsd
+        goarch: arm64
+      - goos: windows
+        goarch: arm64
+      # arm 6
+      - goos: darwin
+        goarch: arm
+      - goos: freebsd
+        goarch: arm
+      - goos: windows
+        goarch: arm
+    binary: '{{ .ProjectName }}'
+archives:
+  - format: zip
+    name_template: '{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
+checksum:
+  name_template: '{{ .ProjectName }}_{{ .Version }}_SHA256SUMS'
+  algorithm: sha256
+signs:
+  - artifacts: checksum
+    args:
+      - "--output"
+      - "${signature}"
+      - "--detach-sign"
+      - "${artifact}"
+release:
+  # Visit your project's GitHub Releases page to publish this release.
+  github:
+    owner: opentelekomcloud-infra
+    name: vault-plugin-secrets-github
+  prerelease: auto
