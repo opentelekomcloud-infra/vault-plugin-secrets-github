@@ -62,3 +62,4 @@ release:
   github:
     owner: opentelekomcloud-infra
     name: vault-plugin-secrets-github
+  prerelease: auto
